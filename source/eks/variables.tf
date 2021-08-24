@@ -51,89 +51,37 @@ variable "tags" {
   default     = {}
   description = "Additional tags (e.g. `map('BusinessUnit`,`XYZ`)"
 }
+
+
 #----------------------------------------------------------
-// VPC
+// VPC VARIABLES
 #----------------------------------------------------------
-variable "create_vpc" {
-  description = "Controls if VPC should be created (it affects almost all resources)"
-  type        = bool
-  default     = false
-}
-variable "enable_public_subnets" {
-  description = "Enable public subnets for EKS Cluster"
-  type        = bool
-  default     = false
-}
-variable "enable_nat_gateway" {
-  description = "Enable NAT Gateway for public subnets"
-  type        = bool
-  default     = false
-}
-variable "single_nat_gateway" {
-  description = "Create single NAT gateway for all private subnets"
-  type        = bool
-  default     = true
-}
-variable "create_igw" {
-  description = "Create internet gateway in public subnets"
-  type        = bool
-  default     = false
-}
-variable "enable_private_subnets" {
-  description = "Enable private subnets for EKS Cluster"
-  type        = bool
-  default     = true
+variable "existing_vpc" {
+  type    = bool
+  default = false
 }
 
 variable "vpc_id" {
-  type        = string
-  description = "VPC id"
-  default     = ""
+  default = ""
 }
-
 variable "private_subnet_ids" {
-  description = "list of private subnets Id's for the Worker nodes"
+  type        = list(string)
   default     = []
 }
-variable "public_subnet_ids" {
-  description = "list of private subnets Id's for the Worker nodes"
-  default     = []
-}
-variable "vpc_cidr_block" {
-  type        = string
-  default     = ""
-  description = "VPC CIDR"
-}
-variable "public_subnets_cidr" {
-  description = "list of Public subnets for the Worker nodes"
-  default     = []
-}
-variable "private_subnets_cidr" {
-  description = "list of Private subnets for the Worker nodes"
-  default     = []
-}
-
-variable "create_vpc_endpoints" {
-  type        = bool
-  default     = false
-  description = "Create VPC endpoints for Private subnets"
-}
-
 variable "endpoint_private_access" {
-  type        = bool
-  default     = true
-  description = "Indicates whether or not the Amazon EKS private API server endpoint is enabled. Default to AWS EKS resource and it is false"
+  default = ""
 }
 variable "endpoint_public_access" {
-  type        = bool
-  default     = true
-  description = "Indicates whether or not the Amazon EKS public API server endpoint is enabled. Default to AWS EKS resource and it is true"
+  default = ""
 }
 variable "enable_irsa" {
-  type        = bool
-  default     = true
-  description = "Indicates whether or not the Amazon EKS public API server endpoint is enabled. Default to AWS EKS resource and it is true"
+  default = ""
 }
+variable "public_subnet_ids" {
+  type        = list(string)
+  default     = []
+}
+
 #----------------------------------------------------------
 // EKS CONTROL PLANE
 #----------------------------------------------------------

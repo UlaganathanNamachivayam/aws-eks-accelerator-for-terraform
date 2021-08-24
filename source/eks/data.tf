@@ -27,8 +27,12 @@ data "aws_eks_cluster_auth" "cluster" {
 data "aws_region" "current" {}
 
 data "aws_security_group" "default" {
-  name   = "default"
-  vpc_id = module.vpc.vpc_id
+  vpc_id = data.aws_vpc.main.id
+
+  filter {
+    name   = "group-name"
+    values = ["default"]
+  }
 }
 
 data "aws_caller_identity" "current" {}
@@ -136,4 +140,22 @@ data "aws_ami" "amazonlinux2eks" {
     name   = "name"
     values = ["amazon-eks-node-${var.kubernetes_version}-*"]
   }
+}
+
+data "aws_vpc" "main" {
+  tags = local.tags
+  filter {
+    name = "tag:Name"
+    values = [join("-", [var.tenant, var.environment, var.zone, "vpc"])]
+  }
+}
+
+data "aws_subnet_ids" "private" {
+  vpc_id = data.aws_vpc.main.id
+  tags = local.private_subnet_tags
+}
+
+data "aws_subnet_ids" "public" {
+  vpc_id = data.aws_vpc.main.id
+  tags = local.public_subnet_tags
 }

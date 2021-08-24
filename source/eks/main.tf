@@ -15,6 +15,7 @@
  * OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
+
 locals {
   tags                = tomap({ "created-by" = var.terraform_version })
   private_subnet_tags = merge(tomap({ "kubernetes.io/role/internal-elb" = "1" }), tomap({ "created-by" = var.terraform_version }))
@@ -32,219 +33,19 @@ locals {
 # LABELING EKS RESOURCES
 # ---------------------------------------------------------------------------------------------------------------------
 module "eks-label" {
-  source      = "../modules/aws-resource-label"
+  source      = "../../modules/aws-resource-label"
   tenant      = var.tenant
   environment = var.environment
   zone        = var.zone
   resource    = "eks"
   tags        = local.tags
 }
-# ---------------------------------------------------------------------------------------------------------------------
-# LABELING VPC RESOURCES
-# ---------------------------------------------------------------------------------------------------------------------
-module "vpc-label" {
-  enabled     = var.create_vpc == true ? true : false
-  source      = "../modules/aws-resource-label"
-  tenant      = var.tenant
-  environment = var.environment
-  zone        = var.zone
-  resource    = "vpc"
-  tags        = local.tags
-}
-
-# ---------------------------------------------------------------------------------------------------------------------
-# VPC, SUBNETS AND ENDPOINTS DEPLOYED FOR FULLY PRIVATE EKS CLUSTERS
-# ---------------------------------------------------------------------------------------------------------------------
-module "vpc" {
-  create_vpc = var.create_vpc
-  source     = "terraform-aws-modules/vpc/aws"
-  version    = "v3.2.0"
-  name       = module.vpc-label.id
-  cidr       = var.vpc_cidr_block
-  azs        = data.aws_availability_zones.available.names
-  # Private Subnets
-  private_subnets     = var.enable_private_subnets ? var.private_subnets_cidr : []
-  private_subnet_tags = var.enable_private_subnets ? local.private_subnet_tags : {}
-
-  # Public Subnets
-  public_subnets     = var.enable_public_subnets ? var.public_subnets_cidr : []
-  public_subnet_tags = var.enable_public_subnets ? local.public_subnet_tags : {}
-
-  enable_nat_gateway = var.enable_nat_gateway ? var.enable_nat_gateway : false
-  single_nat_gateway = var.single_nat_gateway ? var.single_nat_gateway : false
-  create_igw         = var.enable_public_subnets && var.create_igw ? var.create_igw : false
-
-  enable_vpn_gateway              = false
-  create_egress_only_igw          = false
-  create_database_subnet_group    = false
-  create_elasticache_subnet_group = false
-  create_redshift_subnet_group    = false
-
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-
-  # Enabling Custom Domain name servers
-  //  enable_dhcp_options              = true
-  //  dhcp_options_domain_name         = "service.consul"
-  //  dhcp_options_domain_name_servers = ["127.0.0.1", "10.10.0.2"]
-
-  # VPC Flow Logs (Cloudwatch log group and IAM role will be created)
-  enable_flow_log                      = false
-  create_flow_log_cloudwatch_log_group = false
-  create_flow_log_cloudwatch_iam_role  = false
-  flow_log_max_aggregation_interval    = 60
-
-  tags = local.tags
-
-  manage_default_security_group = true
-
-  default_security_group_name = "${module.vpc-label.id}-endpoint-secgrp"
-  default_security_group_ingress = [
-    {
-      protocol    = -1
-      from_port   = 0
-      to_port     = 0
-      cidr_blocks = var.vpc_cidr_block
-  }]
-  default_security_group_egress = [
-    {
-      from_port   = 0
-      to_port     = 0
-      protocol    = -1
-      cidr_blocks = "0.0.0.0/0"
-  }]
-
-}
-################################################################################
-# VPC Endpoints Module
-################################################################################
-module "endpoints_interface" {
-  source  = "terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
-  version = "v3.2.0"
-
-  create = var.create_vpc_endpoints
-  vpc_id = module.vpc.vpc_id
-
-  endpoints = {
-    s3 = {
-      service      = "s3"
-      service_type = "Gateway"
-      route_table_ids = flatten([
-        module.vpc.intra_route_table_ids,
-      module.vpc.private_route_table_ids])
-      tags = { Name = "s3-vpc-Gateway" }
-    },
-    /*
-    dynamodb = {
-      service = "dynamodb"
-      service_type = "Gateway"
-      route_table_ids = flatten([
-        module.vpc.intra_route_table_ids,
-        module.vpc.private_route_table_ids,
-        module.vpc.public_route_table_ids])
-      policy = data.aws_iam_policy_document.dynamodb_endpoint_policy.json
-      tags = { Name = "dynamodb-vpc-endpoint" }
-    },
-    */
-  }
-}
-
-module "vpc_endpoints_gateway" {
-  source  = "terraform-aws-modules/vpc/aws//modules/vpc-endpoints"
-  version = "v3.2.0"
-
-  create = var.create_vpc_endpoints
-
-  vpc_id             = module.vpc.vpc_id
-  security_group_ids = [data.aws_security_group.default.id]
-  subnet_ids         = module.vpc.private_subnets
-
-  endpoints = {
-    aps-workspaces = {
-      service             = "aps-workspaces"
-      private_dns_enabled = true
-    },
-    ssm = {
-      service             = "ssm"
-      private_dns_enabled = true
-    },
-    logs = {
-      service             = "logs"
-      private_dns_enabled = true
-    },
-    autoscaling = {
-      service             = "autoscaling"
-      private_dns_enabled = true
-    },
-    sts = {
-      service             = "sts"
-      private_dns_enabled = true
-    },
-    elasticloadbalancing = {
-      service             = "elasticloadbalancing"
-      private_dns_enabled = true
-    },
-    ec2 = {
-      service             = "ec2"
-      private_dns_enabled = true
-    },
-    ec2messages = {
-      service             = "ec2messages"
-      private_dns_enabled = true
-    },
-    ecr_api = {
-      service             = "ecr.api"
-      private_dns_enabled = true
-    },
-    ecr_dkr = {
-      service             = "ecr.dkr"
-      private_dns_enabled = true
-    },
-    kms = {
-      service             = "kms"
-      private_dns_enabled = true
-    },
-    /*    elasticfilesystem = {
-          service             = "elasticfilesystem"
-          private_dns_enabled = true
-        },
-        ssmmessages = {
-          service             = "ssmmessages"
-          private_dns_enabled = true
-        },
-        lambda = {
-          service             = "lambda"
-          private_dns_enabled = true
-        },
-        ecs = {
-          service             = "ecs"
-          private_dns_enabled = true
-        },
-        ecs_telemetry = {
-          service             = "ecs-telemetry"
-          private_dns_enabled = true
-        },
-        codedeploy = {
-          service             = "codedeploy"
-          private_dns_enabled = true
-        },
-        codedeploy_commands_secure = {
-          service             = "codedeploy-commands-secure"
-          private_dns_enabled = true
-        },*/
-  }
-
-  tags = merge(local.tags, {
-    Project  = "EKS"
-    Endpoint = "true"
-  })
-}
 
 # ---------------------------------------------------------------------------------------------------------------------
 # RBAC DEPLOYMENT
 # ---------------------------------------------------------------------------------------------------------------------
 module "rbac" {
-  source      = "../modules/rbac"
+  source      = "../../modules/rbac"
   tenant      = var.tenant
   environment = var.environment
   zone        = var.zone
@@ -258,14 +59,14 @@ resource "aws_kms_key" "eks" {
 }
 
 module "eks" {
-  source          = "terraform-aws-modules/eks/aws"
-  version         = "17.1.0"
-  cluster_name    = module.eks-label.id
-  cluster_version = var.kubernetes_version
+  source                          = "terraform-aws-modules/eks/aws"
+  version                         = "17.1.0"
+  cluster_name                    = module.eks-label.id
+  cluster_version                 = var.kubernetes_version
 
-  vpc_id = var.create_vpc == false ? var.vpc_id : module.vpc.vpc_id
+  vpc_id                          = var.existing_vpc == true ? var.vpc_id : data.aws_vpc.main.id
 
-  subnets                         = var.create_vpc == false ? var.private_subnet_ids : module.vpc.private_subnets
+  subnets                         = var.existing_vpc == true ? var.private_subnet_ids : data.aws_subnet_ids.private.ids
   cluster_endpoint_private_access = var.endpoint_private_access
   cluster_endpoint_public_access  = var.endpoint_public_access
   enable_irsa                     = var.enable_irsa
@@ -316,7 +117,7 @@ module "eks" {
       desired_capacity        = var.spot_desired_size
       min_capacity            = var.spot_min_size
       max_capacity            = var.spot_max_size
-      subnets                 = var.create_vpc == false ? var.private_subnet_ids : module.vpc.private_subnets
+      subnets                 = var.existing_vpc == true ? var.private_subnet_ids : data.aws_subnet_ids.private.ids
       launch_template_id      = module.launch-templates-spot.launch_template_id
       launch_template_version = module.launch-templates-spot.launch_template_latest_version
       instance_types          = var.spot_instance_type
@@ -345,7 +146,7 @@ module "eks" {
       max_capacity     = var.on_demand_max_size
       min_capacity     = var.on_demand_min_size
 
-      subnets = var.create_vpc == false ? var.private_subnet_ids : module.vpc.private_subnets
+      subnets          = var.existing_vpc == true ? var.private_subnet_ids : data.aws_subnet_ids.private.ids
 
       launch_template_id      = module.launch-templates-on-demand.launch_template_id
       launch_template_version = module.launch-templates-on-demand.launch_template_latest_version
@@ -382,7 +183,7 @@ module "eks" {
       desired_capacity        = var.on_demand_desired_size
       max_capacity            = var.on_demand_max_size
       min_capacity            = var.on_demand_min_size
-      subnets                 = var.create_vpc == false ? var.public_subnet_ids : module.vpc.public_subnets
+      subnets                 = var.existing_vpc == true ? var.public_subnet_ids : data.aws_subnet_ids.public.ids
       launch_template_id      = module.public-launch-templates-on-demand.launch_template_id
       launch_template_version = module.public-launch-templates-on-demand.launch_template_latest_version
       instance_types          = var.on_demand_instance_type
@@ -410,7 +211,7 @@ module "eks" {
       desired_capacity        = var.bottlerocket_desired_size
       max_capacity            = var.bottlerocket_max_size
       min_capacity            = var.bottlerocket_min_size
-      subnets                 = var.create_vpc == false ? var.private_subnet_ids : module.vpc.private_subnets
+      subnets                 = var.existing_vpc == true ? var.private_subnet_ids : data.aws_subnet_ids.private.ids
       launch_template_id      = module.launch-templates-bottlerocket.launch_template_id
       launch_template_version = module.launch-templates-bottlerocket.launch_template_latest_version
       instance_types          = var.bottlerocket_instance_type
@@ -502,7 +303,7 @@ module "eks" {
     fg-ns-default = {
       name = var.fargate_profile_namespace
 
-      subnets = var.create_vpc == false ? var.private_subnet_ids : module.vpc.private_subnets
+      subnets = var.existing_vpc == true ? var.private_subnet_ids : data.aws_subnet_ids.private.ids
 
       selectors = [
         {
@@ -532,7 +333,7 @@ module "eks" {
 # ---------------------------------------------------------------------------------------------------------------------
 
 module "public-launch-templates-on-demand" {
-  source                   = "../modules/launch-templates"
+  source                   = "../../modules/launch-templates"
   cluster_name             = module.eks.cluster_id
   volume_size              = "50"
   worker_security_group_id = module.eks.worker_security_group_id
@@ -542,7 +343,7 @@ module "public-launch-templates-on-demand" {
 }
 
 module "launch-templates-on-demand" {
-  source                   = "../modules/launch-templates"
+  source                   = "../../modules/launch-templates"
   cluster_name             = module.eks.cluster_id
   volume_size              = "50"
   worker_security_group_id = module.eks.worker_security_group_id
@@ -551,7 +352,7 @@ module "launch-templates-on-demand" {
 }
 
 module "launch-templates-spot" {
-  source                   = "../modules/launch-templates"
+  source                   = "../../modules/launch-templates"
   cluster_name             = module.eks.cluster_id
   volume_size              = "50"
   worker_security_group_id = module.eks.worker_security_group_id
@@ -560,7 +361,7 @@ module "launch-templates-spot" {
 }
 
 module "launch-templates-bottlerocket" {
-  source                   = "../modules/launch-templates"
+  source                   = "../../modules/launch-templates"
   cluster_name             = module.eks.cluster_id
   volume_size              = "50"
   worker_security_group_id = module.eks.worker_security_group_id
@@ -581,7 +382,7 @@ module "launch-templates-bottlerocket" {
 # This is needed due to this issue: https://github.com/terraform-aws-modules/terraform-aws-eks/issues/1456
 module "windows_support_iam" {
   count        = var.enable_windows_support ? 1 : 0
-  source       = "../modules/windows-support/iam"
+  source       = "../../modules/windows-support/iam"
   cluster_name = module.eks-label.id
   tags         = module.eks-label.tags
   # Conditionally attach specific policies to the node IAM roles
@@ -593,7 +394,7 @@ module "windows_support_iam" {
 # Create Windows-specific VPC resource controller, admission webhook
 module "windows_support_vpc_resources" {
   count        = var.enable_windows_support ? 1 : 0
-  source       = "../modules/windows-support/vpc-resources"
+  source       = "../../modules/windows-support/vpc-resources"
   cluster_name = module.eks.cluster_id
   depends_on   = [module.eks]
 }
@@ -602,7 +403,7 @@ module "windows_support_vpc_resources" {
 # AWS EKS Add-ons (VPC CNI, CoreDNS, KubeProxy )
 # ---------------------------------------------------------------------------------------------------------------------
 module "aws-eks-addon" {
-  source                = "../modules/aws-eks-addon"
+  source                = "../../modules/aws-eks-addon"
   cluster_name          = module.eks.cluster_id
   enable_vpc_cni_addon  = var.enable_vpc_cni_addon
   vpc_cni_addon_version = var.vpc_cni_addon_version
@@ -618,7 +419,7 @@ module "aws-eks-addon" {
 # IAM Module
 # ---------------------------------------------------------------------------------------------------------------------
 module "iam" {
-  source                    = "../modules/iam"
+  source                    = "../../modules/iam"
   environment               = var.environment
   tenant                    = var.tenant
   zone                      = var.zone
@@ -631,7 +432,7 @@ module "iam" {
 # ---------------------------------------------------------------------------------------------------------------------
 module "aws_managed_prometheus" {
   count                           = var.aws_managed_prometheus_enable == true ? 1 : 0
-  source                          = "../modules/aws_managed_prometheus"
+  source                          = "../../modules/aws_managed_prometheus"
   environment                     = var.environment
   tenant                          = var.tenant
   zone                            = var.zone
@@ -649,7 +450,7 @@ module "aws_managed_prometheus" {
 # ---------------------------------------------------------------------------------------------------------------------
 
 module "s3" {
-  source         = "../modules/s3"
+  source         = "../../modules/s3"
   s3_bucket_name = "${var.tenant}-${var.environment}-${var.zone}-elb-accesslogs-${data.aws_caller_identity.current.account_id}"
   account_id     = data.aws_caller_identity.current.account_id
 }
@@ -658,7 +459,7 @@ module "s3" {
 # Invoking Helm Module
 # ---------------------------------------------------------------------------------------------------------------------
 module "helm" {
-  source                     = "../helm"
+  source                     = "../../helm"
   eks_cluster_id             = module.eks.cluster_id
   public_docker_repo         = var.public_docker_repo
   private_container_repo_url = local.image_repo

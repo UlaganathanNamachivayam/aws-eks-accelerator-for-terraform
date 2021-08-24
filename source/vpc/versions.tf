@@ -16,11 +16,6 @@
  * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#  Terraform state for S3 backend config variables
-
-#bucket = "<bucket>"
-#region = "<region>"
-#key    = "terraform-state-files/ekscluster/preprod/application/dev/terraform-main.tfstate"
-
-# Terraform state for local backend
-path = "local_tf_state/ekscluster/preprod/application/dev/terraform-main.tfstate"
+terraform {
+  required_version = ">= 1.0.0"
+}

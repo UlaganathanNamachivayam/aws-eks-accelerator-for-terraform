@@ -37,21 +37,21 @@ terraform_version = "Terraform v1.0.1"
 #---------------------------------------------------------#
 # OPTION 1
 #---------------------------------------------------------#
-create_vpc             = true
-enable_private_subnets = true
-enable_public_subnets  = true
+#create_vpc             = true
+#enable_private_subnets = true
+#enable_public_subnets  = true
 
 # Enable or Disable NAT Gateqay and Internet Gateway for Public Subnets
-enable_nat_gateway = true
-single_nat_gateway = true
-create_igw         = true
+//enable_nat_gateway = true
+//single_nat_gateway = true
+//create_igw         = true
 
-vpc_cidr_block       = "10.1.0.0/18"
-private_subnets_cidr = ["10.1.0.0/22", "10.1.4.0/22", "10.1.8.0/22"]
-public_subnets_cidr  = ["10.1.12.0/22", "10.1.16.0/22", "10.1.20.0/22"]
+//vpc_cidr_block       = "10.1.0.0/18"
+//private_subnets_cidr = ["10.1.0.0/22", "10.1.4.0/22", "10.1.8.0/22"]
+//public_subnets_cidr  = ["10.1.12.0/22", "10.1.16.0/22", "10.1.20.0/22"]
 
 # Change this to true when you want to create VPC endpoints for Private subnets
-create_vpc_endpoints = true
+//create_vpc_endpoints = true
 #---------------------------------------------------------#
 # OPTION 2
 #---------------------------------------------------------#
@@ -217,7 +217,7 @@ traefik_image_tag                 = "v2.4.9"
 #---------------------------------------------------------#
 # ENABLE OPENTELEMETRY COLLECTOR FOR NODE GROUPS
 #---------------------------------------------------------#
-opentelemetry_enable                                  = true
+opentelemetry_enable                                  = false
 opentelemetry_image                                   = "otel/opentelemetry-collector"
 opentelemetry_image_tag                               = "0.31.0"
 opentelemetry_command_name                            = "otelcol"
